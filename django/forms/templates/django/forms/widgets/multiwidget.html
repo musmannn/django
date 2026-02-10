@@ -1,1 +1,1 @@
-{% spaceless %}{% for widget in widget.subwidgets %}{% if widget.rendered %}{{ widget.rendered }}{% else %}{% include widget.template_name %}{% endif %}{% endfor %}{% endspaceless %}
+{% spaceless %}{% for widget in widget.subwidgets %}{% if widget.rendered %}{{ widget.rendered|safe }}{% else %}{% include widget.template_name %}{% endif %}{% endfor %}{% endspaceless %}
