@@ -1007,9 +1007,12 @@ class MultiWidget(Widget):
                 widget_attrs["id"] = "%s_%s" % (id_, i)
             else:
                 widget_attrs = final_attrs
-            subwidgets.append(
-                widget.get_context(widget_name, widget_value, widget_attrs)["widget"]
+            subwidget_context = widget.get_context(widget_name, widget_value, widget_attrs)["widget"]
+            # Call the subwidget's render() method to respect custom rendering.
+            subwidget_context["rendered"] = widget.render(
+                widget_name, widget_value, widget_attrs
             )
+            subwidgets.append(subwidget_context)
         context["widget"]["subwidgets"] = subwidgets
         return context
 

@@ -1,1 +1,1 @@
-{% for widget in widget.subwidgets -%}{% include widget.template_name %}{%- endfor %}
+{% for widget in widget.subwidgets -%}{% if widget.rendered %}{{ widget.rendered }}{% else %}{% include widget.template_name %}{% endif %}{%- endfor %}

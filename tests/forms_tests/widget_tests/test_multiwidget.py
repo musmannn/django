@@ -325,3 +325,100 @@ class MultiWidgetTest(WidgetTest):
             "</fieldset></div>",
             form.render(),
         )
+
+    def test_custom_render_method(self):
+        """
+        MultiWidget should respect custom render() methods on subwidgets.
+        """
+
+        class CustomTextInput(TextInput):
+            def render(self, name, value, attrs=None, renderer=None):
+                # Add a custom data attribute to the rendered output
+                html = super().render(name, value, attrs, renderer)
+                return html.replace('<input', '<input data-custom="true"')
+
+        class CustomMultiWidget(MultiWidget):
+            def __init__(self, attrs=None):
+                widgets = (CustomTextInput(), TextInput())
+                super().__init__(widgets, attrs)
+
+            def decompress(self, value):
+                if value:
+                    return value.split("__")
+                return ["", ""]
+
+        widget = CustomMultiWidget()
+        self.check_html(
+            widget,
+            "name",
+            ["john", "lennon"],
+            html=(
+                '<input type="text" name="name_0" value="john" data-custom="true">'
+                '<input type="text" name="name_1" value="lennon">'
+            ),
+        )
+
+    def test_custom_renderer_on_subwidget(self):
+        """
+        MultiWidget should respect custom renderers on subwidgets.
+        """
+        from django.forms.renderers import BaseRenderer
+        from django.template import engines
+        from django.utils.safestring import mark_safe
+
+        class CustomRenderer(BaseRenderer):
+            def render(self, template_name, context, request=None):
+                # Custom renderer that wraps output in a span
+                engine = engines["django"]
+                template = engine.get_template(template_name)
+                html = template.render(context, request)
+                return mark_safe(f'<span class="custom">{html}</span>')
+
+        class CustomRenderTextInput(TextInput):
+            def render(self, name, value, attrs=None, renderer=None):
+                # Force use of custom renderer
+                return super().render(name, value, attrs, CustomRenderer())
+
+        class CustomRendererMultiWidget(MultiWidget):
+            def __init__(self, attrs=None):
+                widgets = (CustomRenderTextInput(), TextInput())
+                super().__init__(widgets, attrs)
+
+            def decompress(self, value):
+                if value:
+                    return value.split("__")
+                return ["", ""]
+
+        widget = CustomRendererMultiWidget()
+        html = widget.render("name", ["john", "lennon"])
+        # First widget should be wrapped in custom span
+        self.assertIn('<span class="custom">', html)
+        self.assertIn('name="name_0"', html)
+        self.assertIn('value="john"', html)
+        # Second widget should not have custom wrapper
+        self.assertIn('name="name_1"', html)
+        self.assertIn('value="lennon"', html)
+
+    def test_backwards_compatibility_subwidget_context(self):
+        """
+        Test that subwidget context still contains all the original keys
+        for backwards compatibility with custom templates.
+        """
+        widget = MyMultiWidget(
+            widgets=(TextInput(), TextInput())
+        )
+        context = widget.get_context("name", ["john", "lennon"], {})
+        subwidgets = context["widget"]["subwidgets"]
+
+        # Each subwidget should have the original context keys
+        self.assertEqual(len(subwidgets), 2)
+        for subwidget in subwidgets:
+            self.assertIn("name", subwidget)
+            self.assertIn("value", subwidget)
+            self.assertIn("attrs", subwidget)
+            self.assertIn("template_name", subwidget)
+            # And the new 'rendered' key
+            self.assertIn("rendered", subwidget)
+            # The rendered key should contain HTML
+            self.assertIsInstance(subwidget["rendered"], str)
+            self.assertIn("<input", subwidget["rendered"])
